@@ -1,4 +1,4 @@
-# Common Ground
+  ## Common Ground
 
 > Six everyday problems. One place to solve them.
 
