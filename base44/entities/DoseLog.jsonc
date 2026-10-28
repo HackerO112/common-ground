@@ -1,0 +1,81 @@
+{
+  "name": "DoseLog",
+  "type": "object",
+  "properties": {
+    "medicine_id": {
+      "type": "string"
+    },
+    "medicine_name": {
+      "type": "string"
+    },
+    "person_name": {
+      "type": "string"
+    },
+    "dosage": {
+      "type": "string"
+    },
+    "scheduled_time": {
+      "type": "string"
+    },
+    "log_date": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "taken",
+        "skipped"
+      ],
+      "default": "taken"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "medicine_id",
+    "log_date",
+    "status"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "name": "SurplusListing",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "business_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "bakery",
+        "produce",
+        "prepared",
+        "pantry",
+        "dairy",
+        "other"
+      ]
+    },
+    "quantity": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "pickup_start": {
+      "type": "string"
+    },
+    "pickup_end": {
+      "type": "string"
+    },
+    "address": {
+      "type": "string"
+    },
+    "contact": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "available",
+        "reserved",
+        "collected",
+        "expired"
+      ],
+      "default": "available"
+    },
+    "reserved_by_id": {
+      "type": "string"
+    },
+    "reserved_by_name": {
+      "type": "string"
+    },
+    "reserved_at": {
+      "type": "string"
+    },
+    "reservation_note": {
+      "type": "string"
+    },
+    "collected_at": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "title",
+    "business_name",
+    "category",
+    "quantity",
+    "pickup_start",
+    "pickup_end",
+    "status"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "data.reserved_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "WaterUpdate",
+  "type": "object",
+  "properties": {
+    "area": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "tanker",
+        "shortage",
+        "wastage",
+        "restored"
+      ]
+    },
+    "timing": {
+      "type": "string"
+    },
+    "note": {
+      "type": "string"
+    },
+    "reporter_name": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "reported",
+        "resolved"
+      ],
+      "default": "reported"
+    }
+  },
+  "required": [
+    "area",
+    "kind",
+    "status"
+  ],
+  "rls": {
+    "read": {},
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
