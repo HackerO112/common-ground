@@ -1,14 +1,12 @@
 import { Lock, LogIn, Mail } from "lucide-react";
 import { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { auth } from "@/api/api";
 import { AuthLayout } from "@/components/auth/AuthLayout";
-import { AuthError, AuthLink, GoogleButton, OrDivider, SubmitButton } from "@/components/auth/parts";
+import { AuthError, AuthLink, OrDivider, SubmitButton } from "@/components/auth/parts";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
-// The /login page. ?returnTo= (or the platform's ?from_url=) is where the visitor
-// goes after signing in — the login gate and the MCP consent page send people here with it.
 export function LoginPage() {
   const returnTo = safeReturnTo();
   const [email, setEmail] = useState("");
@@ -21,8 +19,8 @@ export function LoginPage() {
     setError("");
     setBusy(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
-      // A hard redirect: the app re-initializes with the new session.
+      const { token, user } = await auth.login({ email, password });
+      localStorage.setItem('cg_token', token);
       window.location.href = returnTo;
     } catch (err) {
       setError(err.message || "Invalid email or password");
@@ -32,7 +30,6 @@ export function LoginPage() {
 
   return (
     <AuthLayout icon={LogIn} title="Welcome back" subtitle="Log in to your account">
-      <GoogleButton returnTo={returnTo} />
       <OrDivider />
       <AuthError>{error}</AuthError>
       <form onSubmit={submit} className="space-y-4">

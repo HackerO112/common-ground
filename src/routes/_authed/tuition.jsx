@@ -1,41 +1,39 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { toast } from "sonner";
-import { GraduationCap } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-import PageHeading from "@/components/PageHeading";
-import EmptyState from "@/components/EmptyState";
-import TuitionCard from "@/components/tuition/TuitionCard";
-import TuitionPostDialog from "@/components/tuition/TuitionPostDialog";
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { GraduationCap } from 'lucide-react';
+import { tuition } from '@/api/api';
+import PageHeading from '@/components/PageHeading';
+import EmptyState from '@/components/EmptyState';
+import TuitionCard from '@/components/tuition/TuitionCard';
+import TuitionPostDialog from '@/components/tuition/TuitionPostDialog';
 
 const VIEWS = [
-  { key: "offers", label: "Free classes offered" },
-  { key: "requests", label: "Families asking for help" },
+  { key: 'offers', label: 'Free classes offered' },
+  { key: 'requests', label: 'Families asking for help' },
 ];
 
-export const Route = createFileRoute("/_authed/tuition")({
-  head: () => ({ meta: [{ title: "Free tuition — Common Ground" }] }),
+export const Route = createFileRoute('/_authed/tuition')({
+  head: () => ({ meta: [{ title: 'Free tuition — Common Ground' }] }),
   ssr: false,
   validateSearch: (search) => ({ view: search.view }),
   loaderDeps: ({ search }) => ({ view: search.view }),
   component: TuitionBoard,
   loader: async ({ deps }) => {
-    const me = await base44.auth.me();
-    const view = deps.view === "requests" ? "requests" : "offers";
-    const kind = view === "requests" ? "request" : "offer";
-    const [page, offers, asks, matched] = await Promise.all([
-      base44.entities.TuitionPost.filter({ kind, status: "open" }, { sort: "-created_date", limit: 60 }),
-      base44.entities.TuitionPost.count({ kind: "offer", status: "open" }),
-      base44.entities.TuitionPost.count({ kind: "request", status: "open" }),
-      base44.entities.TuitionPost.count({ status: "matched" }),
-    ]);
+    const view = deps.view === 'requests' ? 'requests' : 'offers';
+    const kind = view === 'requests' ? 'request' : 'offer';
+    const { posts } = await tuition.list({ kind, status: 'open' });
     return {
       view,
       kind,
-      posts: page.items ?? [],
-      userId: me.id,
-      myName: me.full_name || me.email,
-      counts: { offers, asks, matched },
+      posts,
+      userId: 1,
+      myName: 'Demo User',
+      counts: {
+        offers: posts.filter(p => p.kind === 'offer').length,
+        asks: posts.filter(p => p.kind === 'request').length,
+        matched: 0,
+      },
     };
   },
 });
@@ -48,12 +46,12 @@ function TuitionBoard() {
   async function createPost(payload) {
     setSaving(true);
     try {
-      await base44.entities.TuitionPost.create({ ...payload, posted_by_name: myName });
-      toast.success("Posted — your neighbourhood can see it now");
+      await tuition.create(payload);
+      toast.success('Posted — your neighbourhood can see it now');
       await router.invalidate();
       return true;
     } catch (error) {
-      toast.error(error?.message || "Could not post that");
+      toast.error(error?.message || 'Could not post that');
       return false;
     } finally {
       setSaving(false);
@@ -61,14 +59,14 @@ function TuitionBoard() {
   }
 
   async function setStatus(post, status) {
-    await base44.entities.TuitionPost.update(post.id, { status });
-    toast.success(status === "matched" ? "Marked as matched" : "Posted again");
+    await tuition.update(post.id, { status });
+    toast.success(status === 'matched' ? 'Marked as matched' : 'Posted again');
     await router.invalidate();
   }
 
   async function deletePost(post) {
-    await base44.entities.TuitionPost.delete(post.id);
-    toast.success("Post removed");
+    await tuition.remove(post.id);
+    toast.success('Post removed');
     await router.invalidate();
   }
 
@@ -84,9 +82,9 @@ function TuitionBoard() {
 
       <div className="mb-7 grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Offers open", value: counts.offers },
-          { label: "Families waiting", value: counts.asks },
-          { label: "Matched so far", value: counts.matched },
+          { label: 'Offers open', value: counts.offers },
+          { label: 'Families waiting', value: counts.asks },
+          { label: 'Matched so far', value: counts.matched },
         ].map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-border bg-card p-5">
             <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">{stat.label}</p>
@@ -103,8 +101,8 @@ function TuitionBoard() {
             search={{ view: item.key }}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               view === item.key
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
           >
             {item.label}
@@ -115,11 +113,11 @@ function TuitionBoard() {
       {posts.length === 0 ? (
         <EmptyState
           icon={GraduationCap}
-          title={view === "offers" ? "No one has offered yet" : "No families have asked yet"}
+          title={view === 'offers' ? 'No one has offered yet' : 'No families have asked yet'}
           text={
-            view === "offers"
-              ? "If you can spare an hour a week — maths, English, a language — post it here. Somebody on your street is struggling to afford coaching."
-              : "Describe the class, the subject and the area. A volunteer nearby can reach out directly."
+            view === 'offers'
+              ? 'If you can spare an hour a week — maths, English, a language — post it here. Somebody on your street is struggling to afford coaching.'
+              : 'Describe the class, the subject and the area. A volunteer nearby can reach out directly.'
           }
         >
           <TuitionPostDialog kind={kind} onCreate={createPost} saving={saving} />

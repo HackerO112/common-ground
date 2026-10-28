@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { base44 } from "@/api/base44Client";
 
 const CATEGORIES = [
   { value: "pothole", label: "Pothole or road damage" },
@@ -35,21 +34,34 @@ export default function ReportIssueDialog({ onCreate, saving }) {
 
   const update = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
 
+  async function uploadPhoto(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const token = localStorage.getItem("cg_token");
+    const res = await fetch("/api/uploads", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
+    if (!res.ok) throw new Error("Upload failed");
+    const data = await res.json();
+    return data.file_url;
+  }
+
   async function submit(event) {
     event.preventDefault();
     let photo_uri = "";
     if (file) {
       setUploading(true);
       try {
-        const upload = await base44.integrations.Core.UploadPrivateFile({ file });
-        photo_uri = upload.file_uri;
+        photo_uri = await uploadPhoto(file);
       } catch (error) {
         setUploading(false);
         return;
       }
       setUploading(false);
     }
-    const ok = await onCreate({ ...form, photo_uri, status: "reported" });
+    const ok = await onCreate({ ...form, photo_url: photo_uri, location: form.location_text, category: form.category, status: "reported" });
     if (ok) {
       setForm(blank);
       setFile(null);
@@ -143,7 +155,7 @@ export default function ReportIssueDialog({ onCreate, saving }) {
             />
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <ImagePlus className="h-3.5 w-3.5" />
-              A photo is kept with the report (stored privately) and shown to neighbours who can back it up.
+              A photo is kept with the report and shown to neighbours who can back it up.
             </p>
           </div>
           <Button type="submit" className="w-full rounded-full" disabled={saving || uploading}>

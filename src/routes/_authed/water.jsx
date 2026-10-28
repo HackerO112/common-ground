@@ -1,36 +1,33 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Droplets } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-import PageHeading from "@/components/PageHeading";
-import EmptyState from "@/components/EmptyState";
-import WaterCard from "@/components/water/WaterCard";
-import WaterUpdateDialog, { WATER_KINDS } from "@/components/water/WaterUpdateDialog";
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Droplets } from 'lucide-react';
+import { water } from '@/api/api';
+import PageHeading from '@/components/PageHeading';
+import EmptyState from '@/components/EmptyState';
+import WaterCard from '@/components/water/WaterCard';
+import WaterUpdateDialog, { WATER_KINDS } from '@/components/water/WaterUpdateDialog';
 
-const FILTERS = [{ value: "all", label: "Everything" }, ...WATER_KINDS];
+const FILTERS = [{ value: 'all', label: 'Everything' }, ...WATER_KINDS];
 
-export const Route = createFileRoute("/_authed/water")({
-  head: () => ({ meta: [{ title: "Water supply — Common Ground" }] }),
+export const Route = createFileRoute('/_authed/water')({
+  head: () => ({ meta: [{ title: 'Water supply — Common Ground' }] }),
   ssr: false,
   validateSearch: (search) => ({ kind: search.kind }),
   loaderDeps: ({ search }) => ({ kind: search.kind }),
   component: WaterBoard,
   loader: async ({ deps }) => {
-    const me = await base44.auth.me();
-    const kind = deps.kind || "all";
-    const query = { ...(kind === "all" ? {} : { kind }), status: "reported" };
-    const [page, open, shortages, restored] = await Promise.all([
-      base44.entities.WaterUpdate.filter(query, { sort: "-created_date", limit: 60 }),
-      base44.entities.WaterUpdate.count({ status: "reported" }),
-      base44.entities.WaterUpdate.count({ kind: "shortage", status: "reported" }),
-      base44.entities.WaterUpdate.count({ status: "resolved" }),
-    ]);
+    const kind = deps.kind || 'all';
+    const query = kind === 'all' ? {} : { kind, status: 'reported' };
+    const { updates } = await water.list(query);
+    const open = updates.filter(u => u.status === 'reported').length;
+    const shortages = updates.filter(u => u.kind === 'shortage' && u.status === 'reported').length;
+    const restored = updates.filter(u => u.status === 'resolved').length;
     return {
       kind,
-      updates: page.items ?? [],
-      userId: me.id,
-      myName: me.full_name || me.email,
+      updates,
+      userId: 1,
+      myName: 'Demo User',
       counts: { open, shortages, restored },
     };
   },
@@ -44,12 +41,12 @@ function WaterBoard() {
   async function createUpdate(payload) {
     setSaving(true);
     try {
-      await base44.entities.WaterUpdate.create({ ...payload, reporter_name: myName });
-      toast.success("Posted — your street can see it now");
+      await water.create(payload);
+      toast.success('Posted — your street can see it now');
       await router.invalidate();
       return true;
     } catch (error) {
-      toast.error(error?.message || "Could not post that update");
+      toast.error(error?.message || 'Could not post that update');
       return false;
     } finally {
       setSaving(false);
@@ -57,14 +54,14 @@ function WaterBoard() {
   }
 
   async function setStatus(update, status) {
-    await base44.entities.WaterUpdate.update(update.id, { status });
-    toast.success(status === "resolved" ? "Marked as sorted" : "Reopened");
+    await water.update(update.id, { status });
+    toast.success(status === 'resolved' ? 'Marked as sorted' : 'Reopened');
     await router.invalidate();
   }
 
   async function deleteUpdate(update) {
-    await base44.entities.WaterUpdate.delete(update.id);
-    toast.success("Update removed");
+    await water.remove(update.id);
+    toast.success('Update removed');
     await router.invalidate();
   }
 
@@ -80,9 +77,9 @@ function WaterBoard() {
 
       <div className="mb-7 grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Live updates", value: counts.open },
-          { label: "Shortages reported", value: counts.shortages },
-          { label: "Marked sorted", value: counts.restored },
+          { label: 'Live updates', value: counts.open },
+          { label: 'Shortages reported', value: counts.shortages },
+          { label: 'Marked sorted', value: counts.restored },
         ].map((stat) => (
           <div key={stat.label} className="rounded-2xl border border-border bg-card p-5">
             <p className="text-xs font-semibold tracking-[0.14em] text-muted-foreground uppercase">{stat.label}</p>
@@ -99,8 +96,8 @@ function WaterBoard() {
             search={{ kind: filter.value }}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               kind === filter.value
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
           >
             {filter.label}
@@ -111,7 +108,7 @@ function WaterBoard() {
       {updates.length === 0 ? (
         <EmptyState
           icon={Droplets}
-          title={kind === "all" ? "No water updates yet" : "Nothing of this kind right now"}
+          title={kind === 'all' ? 'No water updates yet' : 'Nothing of this kind right now'}
           text="If the tap has been dry since morning, or a tanker is due at six, post it. One line saves twenty phone calls."
         >
           <WaterUpdateDialog onCreate={createUpdate} saving={saving} />
@@ -123,8 +120,8 @@ function WaterBoard() {
               key={update.id}
               update={update}
               userId={userId}
-              onResolve={(item) => setStatus(item, "resolved")}
-              onReopen={(item) => setStatus(item, "reported")}
+              onResolve={(item) => setStatus(item, 'resolved')}
+              onReopen={(item) => setStatus(item, 'reported')}
               onDelete={deleteUpdate}
             />
           ))}

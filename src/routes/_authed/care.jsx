@@ -1,47 +1,47 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { CalendarPlus, HeartPulse, Pill, PlusCircle, Trash2 } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-import PageHeading from "@/components/PageHeading";
-import EmptyState from "@/components/EmptyState";
-import TodayDoses from "@/components/care/TodayDoses";
-import MedicineDialog from "@/components/care/MedicineDialog";
-import AppointmentsPanel from "@/components/care/AppointmentsPanel";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { formatTime, todayKey } from "@/lib/format";
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { CalendarPlus, HeartPulse, Pill, PlusCircle, Trash2 } from 'lucide-react';
+import { medicines, doseLogs, appointments } from '@/api/api';
+import PageHeading from '@/components/PageHeading';
+import EmptyState from '@/components/EmptyState';
+import TodayDoses from '@/components/care/TodayDoses';
+import MedicineDialog from '@/components/care/MedicineDialog';
+import AppointmentsPanel from '@/components/care/AppointmentsPanel';
+import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
+import { formatTime, todayKey } from '@/lib/format';
 
 const TABS = [
-  { key: "today", label: "Today" },
-  { key: "medicines", label: "Medicines" },
-  { key: "appointments", label: "Appointments" },
+  { key: 'today', label: 'Today' },
+  { key: 'medicines', label: 'Medicines' },
+  { key: 'appointments', label: 'Appointments' },
 ];
 
-export const Route = createFileRoute("/_authed/care")({
-  head: () => ({ meta: [{ title: "Care circle — Common Ground" }] }),
+export const Route = createFileRoute('/_authed/care')({
+  head: () => ({ meta: [{ title: 'Care circle — Common Ground' }] }),
   ssr: false,
   validateSearch: (search) => ({ tab: search.tab }),
   loaderDeps: ({ search }) => ({ tab: search.tab }),
   component: CareCircle,
   loader: async () => {
-    const [medsPage, logsPage, apptsPage] = await Promise.all([
-      base44.entities.Medicine.filter({}, { sort: "name", limit: 100 }),
-      base44.entities.DoseLog.filter({ log_date: todayKey() }, { limit: 200 }),
-      base44.entities.Appointment.filter({}, { sort: "starts_at", limit: 100 }),
+    const [medicinesList, logsList, appointmentsList] = await Promise.all([
+      medicines.list(),
+      doseLogs.list({ date: todayKey() }),
+      appointments.list(),
     ]);
     return {
-      medicines: medsPage.items ?? [],
-      logs: logsPage.items ?? [],
-      appointments: apptsPage.items ?? [],
+      medicines: medicinesList.medicines ?? [],
+      logs: logsList.logs ?? [],
+      appointments: appointmentsList.appointments ?? [],
     };
   },
 });
 
 function CareCircle() {
   const { tab } = Route.useSearch();
-  const active = tab || "today";
-  const { medicines, logs, appointments } = Route.useLoaderData();
+  const active = tab || 'today';
+  const { medicines: medicinesList, logs, appointments: appointmentsList } = Route.useLoaderData();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -50,7 +50,7 @@ function CareCircle() {
 
   const schedule = useMemo(() => {
     const rows = [];
-    medicines
+    medicinesList
       .filter((medicine) => medicine.active !== false)
       .forEach((medicine) => {
         (medicine.times || []).forEach((time) => {
@@ -63,7 +63,7 @@ function CareCircle() {
         });
       });
     return rows.sort((a, b) => a.time.localeCompare(b.time));
-  }, [medicines, logs]);
+  }, [medicinesList, logs]);
 
   const loggedCount = schedule.filter((row) => row.log).length;
   const progress = schedule.length ? Math.round((loggedCount / schedule.length) * 100) : 0;
@@ -71,16 +71,16 @@ function CareCircle() {
   async function logDose(medicine, time, status) {
     setBusy(true);
     try {
-      await base44.entities.DoseLog.create({
+      await doseLogs.create({
         medicine_id: medicine.id,
         medicine_name: medicine.name,
-        person_name: medicine.person_name || "",
-        dosage: medicine.dosage || "",
+        person_name: medicine.person_name || '',
+        dosage: medicine.dosage || '',
         scheduled_time: time,
         log_date: todayKey(),
         status,
       });
-      toast.success(status === "taken" ? "Logged as taken" : "Logged as skipped");
+      toast.success(status === 'taken' ? 'Logged as taken' : 'Logged as skipped');
       await router.invalidate();
     } finally {
       setBusy(false);
@@ -90,7 +90,7 @@ function CareCircle() {
   async function undoDose(log) {
     setBusy(true);
     try {
-      await base44.entities.DoseLog.delete(log.id);
+      await doseLogs.remove(log.id);
       await router.invalidate();
     } finally {
       setBusy(false);
@@ -101,16 +101,16 @@ function CareCircle() {
     setSaving(true);
     try {
       if (id) {
-        await base44.entities.Medicine.update(id, payload);
-        toast.success("Medicine updated");
+        await medicines.update(id, payload);
+        toast.success('Medicine updated');
       } else {
-        await base44.entities.Medicine.create(payload);
-        toast.success("Medicine added to the daily list");
+        await medicines.create(payload);
+        toast.success('Medicine added to the daily list');
       }
       await router.invalidate();
       return true;
     } catch (error) {
-      toast.error(error?.message || "Could not save that medicine");
+      toast.error(error?.message || 'Could not save that medicine');
       return false;
     } finally {
       setSaving(false);
@@ -118,8 +118,8 @@ function CareCircle() {
   }
 
   async function deleteMedicine(medicine) {
-    await base44.entities.Medicine.delete(medicine.id);
-    toast.success("Medicine removed");
+    await medicines.remove(medicine.id);
+    toast.success('Medicine removed');
     await router.invalidate();
   }
 
@@ -127,15 +127,15 @@ function CareCircle() {
     setSaving(true);
     try {
       if (id) {
-        await base44.entities.Appointment.update(id, payload);
+        await appointments.update(id, payload);
       } else {
-        await base44.entities.Appointment.create(payload);
+        await appointments.create(payload);
       }
-      toast.success(id ? "Appointment updated" : "Appointment added");
+      toast.success(id ? 'Appointment updated' : 'Appointment added');
       await router.invalidate();
       return true;
     } catch (error) {
-      toast.error(error?.message || "Could not save that appointment");
+      toast.error(error?.message || 'Could not save that appointment');
       return false;
     } finally {
       setSaving(false);
@@ -143,14 +143,14 @@ function CareCircle() {
   }
 
   async function setAppointmentStatus(appointment, status) {
-    await base44.entities.Appointment.update(appointment.id, { status });
-    toast.success(status === "done" ? "Marked as done" : "Marked as cancelled");
+    await appointments.update(appointment.id, { status });
+    toast.success(status === 'done' ? 'Marked as done' : 'Marked as cancelled');
     await router.invalidate();
   }
 
   async function deleteAppointment(appointment) {
-    await base44.entities.Appointment.delete(appointment.id);
-    toast.success("Appointment removed");
+    await appointments.remove(appointment.id);
+    toast.success('Appointment removed');
     await router.invalidate();
   }
 
@@ -170,8 +170,8 @@ function CareCircle() {
             search={{ tab: item.key }}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
               active === item.key
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
           >
             {item.label}
@@ -179,7 +179,7 @@ function CareCircle() {
         ))}
       </div>
 
-      {active === "today" ? (
+      {active === 'today' ? (
         <div className="space-y-6">
           <div className="rounded-3xl border border-border bg-card p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -226,11 +226,11 @@ function CareCircle() {
             <TodayDoses schedule={schedule} busy={busy} onLog={logDose} onUndo={undoDose} />
           )}
 
-          {medicines.some((m) => m.instructions) ? (
+          {medicinesList.some((m) => m.instructions) ? (
             <div className="rounded-3xl border border-border bg-card p-6">
               <h2 className="font-display text-lg font-semibold tracking-tight">Notes to remember</h2>
               <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-                {medicines
+                {medicinesList
                   .filter((m) => m.instructions)
                   .map((m) => (
                     <li key={m.id}>
@@ -243,7 +243,7 @@ function CareCircle() {
         </div>
       ) : null}
 
-      {active === "medicines" ? (
+      {active === 'medicines' ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 className="font-display text-xl font-semibold tracking-tight">The daily list</h2>
@@ -259,7 +259,7 @@ function CareCircle() {
             </Button>
           </div>
 
-          {medicines.length === 0 ? (
+          {medicinesList.length === 0 ? (
             <EmptyState
               icon={HeartPulse}
               title="Nothing on the list yet"
@@ -267,14 +267,14 @@ function CareCircle() {
             />
           ) : (
             <ul className="space-y-3">
-              {medicines.map((medicine) => (
+              {medicinesList.map((medicine) => (
                 <li key={medicine.id} className="rounded-2xl border border-border bg-card p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="font-display text-lg font-semibold tracking-tight">{medicine.name}</h3>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {medicine.dosage}
-                        {medicine.person_name ? ` · ${medicine.person_name}` : ""} · {medicine.form}
+                        {medicine.person_name ? ` · ${medicine.person_name}` : ''} · {medicine.form}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -318,7 +318,7 @@ function CareCircle() {
                       className="rounded-full text-muted-foreground"
                       onClick={() => saveMedicine({ active: medicine.active === false }, medicine.id)}
                     >
-                      {medicine.active === false ? "Put back on the list" : "Pause for now"}
+                      {medicine.active === false ? 'Put back on the list' : 'Pause for now'}
                     </Button>
                   </div>
                 </li>
@@ -328,9 +328,9 @@ function CareCircle() {
         </div>
       ) : null}
 
-      {active === "appointments" ? (
+      {active === 'appointments' ? (
         <AppointmentsPanel
-          appointments={appointments}
+          appointments={appointmentsList}
           onSave={saveAppointment}
           onStatus={setAppointmentStatus}
           onDelete={deleteAppointment}
@@ -346,7 +346,7 @@ function CareCircle() {
         saving={saving}
       />
 
-      {active === "appointments" && appointments.length === 0 ? (
+      {active === 'appointments' && appointmentsList.length === 0 ? (
         <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
           <CalendarPlus className="h-4 w-4 text-primary" />
           Add the next visit and it will show on the overview page too.

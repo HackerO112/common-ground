@@ -1,47 +1,43 @@
-import { Link, createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { toast } from "sonner";
-import { Utensils } from "lucide-react";
-import { base44 } from "@/api/base44Client";
-import { releaseSurplus, reserveSurplus } from "@/lib/server-fns";
-import EmptyState from "@/components/EmptyState";
-import PageHeading from "@/components/PageHeading";
-import PostSurplusDialog from "@/components/food/PostSurplusDialog";
-import ReserveDialog from "@/components/food/ReserveDialog";
-import SurplusCard from "@/components/food/SurplusCard";
+import { Link, createFileRoute, useRouter } from '@tanstack/react-router';
+import { useState } from 'react';
+import { toast } from 'sonner';
+import { Utensils } from 'lucide-react';
+import { food } from '@/api/api';
+import EmptyState from '@/components/EmptyState';
+import PageHeading from '@/components/PageHeading';
+import PostSurplusDialog from '@/components/food/PostSurplusDialog';
+import ReserveDialog from '@/components/food/ReserveDialog';
+import SurplusCard from '@/components/food/SurplusCard';
 
 const VIEWS = [
-  { key: "board", label: "Available now" },
-  { key: "mine", label: "My reservations" },
-  { key: "posts", label: "My posts" },
+  { key: 'board', label: 'Available now' },
+  { key: 'mine', label: 'My reservations' },
+  { key: 'posts', label: 'My posts' },
 ];
 
-export const Route = createFileRoute("/_authed/food")({
-  head: () => ({ meta: [{ title: "Food rescue — Common Ground" }] }),
+export const Route = createFileRoute('/_authed/food')({
+  head: () => ({ meta: [{ title: 'Food rescue — Common Ground' }] }),
   ssr: false,
   validateSearch: (search) => ({ view: search.view }),
   loaderDeps: ({ search }) => ({ view: search.view }),
   component: FoodBoard,
   loader: async ({ deps }) => {
-    const me = await base44.auth.me();
-    const view = deps.view || "board";
+    const view = deps.view || 'board';
+    const userId = 1; // will be set by auth context in component
     const query =
-      view === "mine"
-        ? { reserved_by_id: me.id, status: "reserved" }
-        : view === "posts"
-          ? { created_by_id: me.id }
-          : { status: "available" };
-    const page = await base44.entities.SurplusListing.filter(query, { sort: "pickup_end", limit: 60 });
-    return { view, listings: page.items ?? [], userId: me.id };
+      view === 'mine'
+        ? { view: 'mine', userId }
+        : view === 'posts'
+          ? { view: 'posts', userId }
+          : { status: 'available' };
+    const { listings } = await food.list(query);
+    return { view, listings, userId };
   },
 });
 
 function FoodBoard() {
   const { view, listings, userId } = Route.useLoaderData();
   const router = useRouter();
-  const reserve = useServerFn(reserveSurplus);
-  const release = useServerFn(releaseSurplus);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [target, setTarget] = useState(null);
@@ -49,12 +45,12 @@ function FoodBoard() {
   async function createListing(payload) {
     setSaving(true);
     try {
-      await base44.entities.SurplusListing.create(payload);
-      toast.success("Posted — neighbours can see it now");
+      await food.create(payload);
+      toast.success('Posted — neighbours can see it now');
       await router.invalidate();
       return true;
     } catch (error) {
-      toast.error(error?.message || "Could not post that listing");
+      toast.error(error?.message || 'Could not post that listing');
       return false;
     } finally {
       setSaving(false);
@@ -64,12 +60,9 @@ function FoodBoard() {
   async function confirmReserve(listing, note) {
     setBusy(true);
     try {
-      const result = await reserve({ data: { id: listing.id, note } });
-      if (result?.ok) {
-        toast.success("Reserved — the address is on your card");
-        await router.invalidate();
-      }
-      return result;
+      await food.reserve(listing.id, note);
+      toast.success('Reserved — the address is on your card');
+      await router.invalidate();
     } finally {
       setBusy(false);
     }
@@ -78,30 +71,23 @@ function FoodBoard() {
   async function handleRelease(listing) {
     setBusy(true);
     try {
-      const result = await release({ data: { id: listing.id } });
-      if (result?.ok) {
-        toast.success("That portion is back on the board");
-        await router.invalidate();
-      } else {
-        toast.error(result?.error || "Could not release this reservation");
-      }
+      await food.release(listing.id);
+      toast.success('That portion is back on the board');
+      await router.invalidate();
     } finally {
       setBusy(false);
     }
   }
 
   async function handleCollect(listing) {
-    await base44.entities.SurplusListing.update(listing.id, {
-      status: "collected",
-      collected_at: new Date().toISOString(),
-    });
-    toast.success("Marked as collected");
+    await food.collect(listing.id);
+    toast.success('Marked as collected');
     await router.invalidate();
   }
 
   async function handleDelete(listing) {
-    await base44.entities.SurplusListing.delete(listing.id);
-    toast.success("Listing removed");
+    await food.remove(listing.id);
+    toast.success('Listing removed');
     await router.invalidate();
   }
 
@@ -122,9 +108,9 @@ function FoodBoard() {
             to="/food"
             search={{ view: item.key }}
             className={`rounded-full border px-4 py-2 text-sm font-medium transition-colors ${
-              (view || "board") === item.key
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+              (view || 'board') === item.key
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:text-foreground'
             }`}
           >
             {item.label}
@@ -136,16 +122,16 @@ function FoodBoard() {
         <EmptyState
           icon={Utensils}
           title={
-            view === "mine"
-              ? "You are not collecting anything yet"
-              : view === "posts"
-                ? "You have not posted surplus yet"
-                : "Nothing on the board this minute"
+            view === 'mine'
+              ? 'You are not collecting anything yet'
+              : view === 'posts'
+                ? 'You have not posted surplus yet'
+                : 'Nothing on the board this minute'
           }
           text={
-            view === "board"
-              ? "When a bakery or cafe posts leftovers, they appear here with a pickup window. Check back at closing time."
-              : "Everything you reserve or post shows up here, so you always know what you are collecting and from where."
+            view === 'board'
+              ? 'When a bakery or cafe posts leftovers, they appear here with a pickup window. Check back at closing time.'
+              : 'Everything you reserve or post shows up here, so you always know what you are collecting and from where.'
           }
         />
       ) : (
