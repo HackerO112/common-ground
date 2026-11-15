@@ -221,7 +221,7 @@ app.post('/api/auth/register', async (req, res) => {
     const { email, password, full_name, phone, address } = req.body;
     if (!email || !password || !full_name) return res.status(400).json({ message: 'Email, password, and name required' });
     const normalizedEmail = String(email).trim().toLowerCase();
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(normalizedEmail)) return res.status(400).json({ message: 'A valid email address is required' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) return res.status(400).json({ message: 'A valid email address is required' });
     if (String(password).length < 12) return res.status(400).json({ message: 'Password must be at least 12 characters' });
     if (String(full_name).trim().length > 120) return res.status(400).json({ message: 'Name is too long' });
     const existing = await get('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
