@@ -16,7 +16,13 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
-      - run: npm ci
+      - run: npm install --no-audit --no-fund
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: common-ground-package-lock
+          path: package-lock.json
+          if-no-files-found: warn
       - run: npm run lint
       - run: npm run build
   backend:
