@@ -745,7 +745,8 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter(_req, file, callback) {
     const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
-    callback(allowed.has(file.mimetype), allowed.has(file.mimetype) ? undefined : new Error('Only JPEG, PNG, and WebP images are allowed'));
+    if (!allowed.has(file.mimetype)) return callback(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    callback(null, true);
   },
 });
 app.post('/api/uploads', authenticateToken, upload.single('file'), (req, res) => {
